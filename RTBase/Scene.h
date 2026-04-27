@@ -6,7 +6,7 @@
 #include "Imaging.h"
 #include "Materials.h"
 #include "Lights.h"
-
+#define BVH 1 // Set to 1 to enable BVH, 0 for naive traversal
 class Camera
 {
 public:
@@ -69,7 +69,7 @@ public:
 		return true;
 	}
 };
-#define BVH 1 // Set to 1 to enable BVH, 0 for naive traversal
+
 class Scene
 {
 public:

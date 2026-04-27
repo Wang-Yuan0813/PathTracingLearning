@@ -12,10 +12,10 @@
 
 //switches
 #define THREADPOOL 1 //threadpool or multithreads
-#define DENOISE 0 // enable denoising or not
+#define DENOISE 1 // enable denoising or not
 #define MIS 1	//enable MIS or not
-#define RADIOSITY 1	//enable radiosity or not
-#define LIGHTTRACING 1 //light tracing or path tracing
+#define RADIOSITY 0	//enable radiosity or not
+#define LIGHTTRACING 0 //light tracing or path tracing
 class RayTracer
 {
 private:
@@ -29,12 +29,8 @@ public:
 	oidn::DeviceRef device;
 	oidn::FilterRef filter;
 	oidn::BufferRef colorBuf;
-	oidn::BufferRef albedoBuf;
-	oidn::BufferRef normalBuf;
 	oidn::BufferRef outputBuf;
 	float* colourPtr;
-	float* albedoPtr;
-	float* normalPtr;
 	float* outputPtr;
 	std::vector<VPL> vplList;
 #if THREADPOOL
@@ -81,8 +77,6 @@ public:
 		device.commit();
 		//buffer create
 		colorBuf = device.newBuffer((unsigned int)film->width * (unsigned int)film->height * 3 * sizeof(float));
-		albedoBuf = device.newBuffer((unsigned int)film->width * (unsigned int)film->height * 3 * sizeof(float));
-		normalBuf = device.newBuffer((unsigned int)film->width * (unsigned int)film->height * 3 * sizeof(float));
 		outputBuf = device.newBuffer((unsigned int)film->width * (unsigned int)film->height * 3 * sizeof(float));
 		//set filter
 		filter = device.newFilter("RT");
@@ -95,8 +89,6 @@ public:
 		filter.commit();
 
 		colourPtr = (float*)colorBuf.getData();
-		albedoPtr = (float*)albedoBuf.getData();
-		normalPtr = (float*)normalBuf.getData();
 		outputPtr = (float*)outputBuf.getData();
 	}
 	void clear()
@@ -444,7 +436,7 @@ public:
 		//splat onto film
 		film->splat(posX, posY, contrib);
 	}
-	void lightTrace(Sampler* sampler) {
+	void lightTrace(Sampler* sampler, const float& invLightPathCount) {
 		//sample a light source
 		float pmf = 1.0f;//pmf for this light
 		Light* light = scene->sampleLight(sampler, pmf);
@@ -517,8 +509,7 @@ public:
 		Sampler* sampler = &samplers[0];
 		for (int i = 0; i < lightPathCount; ++i) {
 			lightTrace(sampler, invLightPathCount);
-			if ((lightPathCount - i) % 1000 == 0)
-				std::cout << "remain:" << lightPathCount - i << std::endl;
+			//if ((lightPathCount - i) % 1000 == 0)	std::cout << "remain:" << lightPathCount - i << std::endl;
 		}
 #if RADIOSITY
 #if THREADPOOL //THREADPOOL
@@ -608,7 +599,11 @@ public:
 				if (film->SPP > 0) {
 					int p = (x + y * film->width);
 					Colour col = film->film[p] / float(film->SPP);
+#if RADIOSITY
 					film->tonemap(x, y, col, 2.0f);//2.0f
+#else
+					film->tonemap(x, y, col, 20.0f);//2.0f
+#endif
 					unsigned char rc = (unsigned char)(std::min(1.0f, col.r) * 255.0f);
 					unsigned char gc = (unsigned char)(std::min(1.0f, col.g) * 255.0f);
 					unsigned char bc = (unsigned char)(std::min(1.0f, col.b) * 255.0f);

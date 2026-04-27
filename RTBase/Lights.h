@@ -193,11 +193,6 @@ public:
 	}
 	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf)
 	{
-		// Assignment: Update this code to importance sampling lighting based on luminance of each pixel
-		/*Vec3 wi = SamplingDistributions::uniformSampleSphere(sampler->next(), sampler->next());
-		pdf = SamplingDistributions::uniformSpherePDF(wi);
-		reflectedColour = evaluate(wi);
-		return wi;*/
 		//tabulated
 		//get row
 		float r1 = sampler->next();
@@ -220,8 +215,6 @@ public:
 		float cosPhi = cosf(phi);
 		//get direction vector
 		Vec3 wi(cosPhi * sinTheta, cosTheta, sinTheta * sinPhi);
-		//const static float SQPI = SQ(M_PI);//store result
-		//pdf = puv / (2 * SQPI * sinTheta);//this will generate a very low pdf!
 		//get puv's term
 		float dPhi = 2.0f * M_PI / float(env->width);
 		float dTheta = M_PI / float(env->height);
@@ -272,10 +265,6 @@ public:
 		float cosThetaHigh = cosf(theta0 + 0.5 * dTheta);
 		float cosThetaLow = cosf(theta0 - 0.5 * dTheta);
 		return puv / (dPhi * (cosThetaLow - cosThetaHigh));
-		/*
-		float lum = env->texels[pixely * env->width + pixelx].Lum();
-		float puv = (lum * sin(theta)) / totalWeight;
-		return puv / (2.0f * SQPI * sin(theta));*/
 	}
 	bool isArea()
 	{

@@ -44,7 +44,6 @@ public:
 		float p = (cosTheta - cosTheta_t * ior) / (cosTheta + cosTheta_t * ior);
 		float v = (cosTheta * ior - cosTheta_t) / (cosTheta * ior + cosTheta_t);
 		return (SQ(p) + SQ(v)) / 2;
-		//return 1.0f;
 	}
 	static Colour fresnelConductor(float cosTheta, Colour ior, Colour k)
 	{
@@ -387,7 +386,6 @@ public:
 		std::cout << "ConductorBSDF" << std::endl;
 	}
 };
-#if 1
 class GlassBSDF : public BSDF
 {
 public:
@@ -523,143 +521,6 @@ public:
 		std::cout << "GlassBSDF" << std::endl;
 	}
 };
-#else
-class GlassBSDF : public BSDF
-{
-public:
-	Texture* albedo;
-	float intIOR;
-	float extIOR;
-	GlassBSDF() = default;
-	GlassBSDF(Texture* _albedo, float _intIOR, float _extIOR)
-	{
-		albedo = _albedo;
-		intIOR = _intIOR;
-		extIOR = _extIOR;
-	}
-	Vec3 sample(const ShadingData& shadingData, Sampler* sampler, Colour& reflectedColour, float& pdf)
-	{
-		// Replace this with Glass sampling code
-		/*Vec3 wi = SamplingDistributions::cosineSampleHemisphere(sampler->next(), sampler->next());
-		pdf = wi.z / M_PI;
-		reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
-		wi = shadingData.frame.toWorld(wi);
-		return wi;*/
-		//in Glass, we have certain direction of light.
-		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
-		if (woLocal.isZero()) { pdf = 0.0f; return Vec3(0.0f); }
-
-		// whether it is entering or exiting
-		float eta_i = woLocal.z > 0.0f ? extIOR : intIOR;
-		float eta_t = woLocal.z > 0.0f ? intIOR : extIOR;
-		float cosThetaI = fabsf(woLocal.z);
-
-		// Fresnel reflectance for dielectric
-		float F = ShadingHelper::fresnelDielectric(cosThetaI, eta_i, eta_t);
-
-		// sample decision
-		float u = sampler->next();
-
-		// reflection, samilar to mirror
-		if (u < F){
-			Vec3 wiLocal(-woLocal.x, -woLocal.y, woLocal.z); // perfect mirror
-			Vec3 wi = shadingData.frame.toWorld(wiLocal);
-			float cosThetaR = fabsf(woLocal.z);
-			if (cosThetaR < EPSILON) cosThetaR = EPSILON;
-			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) * (F / cosThetaR);
-			return wi;
-		}
-		// transmission
-		else{
-			Vec3 N(0.0f, 0.0f, 1.0f);
-			Vec3 I = -woLocal;
-			float eta = eta_i / eta_t;
-			float NdotI = Dot(N, I); //NdotI = -woLocal.z
-			float k = 1.0f - SQ(eta) * (1.0f - SQ(NdotI));
-			Vec3 T = I * eta  - N * (eta * NdotI + sqrtf(k));
-			Vec3 wiLocal = T; // already points into transmitted medium
-			Vec3 wi = shadingData.frame.toWorld(wiLocal);
-
-			float cosThetaT = fabsf(wiLocal.z);
-			if (cosThetaT < EPSILON) cosThetaT = EPSILON;
-
-			// scale factor from rendering equation for transmission delta term:
-			float etaScale = SQ(eta_t) / SQ(eta_i);
-			reflectedColour = albedo->sample(shadingData.tu, shadingData.tv) * (etaScale * (1.0f - F) / cosThetaT);
-			return wi;
-		}
-	}
-	Colour evaluate(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with Glass evaluation code
-		//return albedo->sample(shadingData.tu, shadingData.tv) / M_PI;
-		Vec3 woLocal = shadingData.frame.toLocal(shadingData.wo);
-		Vec3 wiLocal = shadingData.frame.toLocal(wi);
-
-		if (woLocal.isZero() || wiLocal.isZero()) return Colour(0.0f);
-
-		// reject below-surface directions (convention used elsewhere)
-		if (woLocal.z == 0.0f) return Colour(0.0f);
-
-		// prepare Fresnel and ior
-		float eta_i = woLocal.z > 0.0f ? extIOR : intIOR;
-		float eta_t = woLocal.z > 0.0f ? intIOR : extIOR;
-		float cosThetaI = fabsf(woLocal.z);
-		float F = ShadingHelper::fresnelDielectric(cosThetaI, eta_i, eta_t);
-
-		// expected reflection
-		Vec3 wiRef(-woLocal.x, -woLocal.y, woLocal.z);
-		if (fabsf(wiLocal.x - wiRef.x) < EPSILON &&
-			fabsf(wiLocal.y - wiRef.y) < EPSILON &&
-			fabsf(wiLocal.z - wiRef.z) < EPSILON){//first part of the function
-			float cosThetaR = fabsf(woLocal.z);
-			if (cosThetaR < EPSILON) cosThetaR = EPSILON;
-			return albedo->sample(shadingData.tu, shadingData.tv) * (F / cosThetaR);
-		}
-		// expected transmission: compute refracted direction and compare
-		else{//second part of the function
-			Vec3 N(0.0f, 0.0f, 1.0f);
-			Vec3 I = -woLocal;
-			float eta = eta_i / eta_t;
-			float NdotI = Dot(N, I);
-			float k = 1.0f - SQ(eta) * (1.0f - SQ(NdotI));
-			Vec3 T = I * eta - N * (eta * NdotI + sqrtf(k));
-			// compare T with wiLocal
-			if (fabsf(wiLocal.x - T.x) < EPSILON &&
-				fabsf(wiLocal.y - T.y) < EPSILON &&
-				fabsf(wiLocal.z - T.z) < EPSILON){
-				float cosThetaT = fabsf(T.z);
-				if (cosThetaT < EPSILON) cosThetaT = EPSILON;
-				float etaScale = SQ(eta_t) / SQ(eta_i);
-				return albedo->sample(shadingData.tu, shadingData.tv) * (etaScale * (1.0f - F) / cosThetaT);
-			}
-		}
-		return Colour(0.0f);
-	}
-	float PDF(const ShadingData& shadingData, const Vec3& wi)
-	{
-		// Replace this with GlassPDF
-		/*Vec3 wiLocal = shadingData.frame.toLocal(wi);
-		return SamplingDistributions::cosineHemispherePDF(wiLocal);*/
-		return 0.0f;
-	}
-	bool isPureSpecular()
-	{
-		return true;
-	}
-	bool isTwoSided()
-	{
-		return false;
-	}
-	float mask(const ShadingData& shadingData)
-	{
-		return albedo->sampleAlpha(shadingData.tu, shadingData.tv);
-	}
-	void printBSDFName() {
-		std::cout << "GlassBSDF" << std::endl;
-	}
-};
-#endif 
 class DielectricBSDF : public BSDF
 {
 public:
